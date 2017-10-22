@@ -273,6 +273,7 @@ int main()
 
 					// TODO
 					int prev_size = previous_path_x.size();
+					cout << "prev_path_size = " << prev_size << "\n";
 
 					// create a widely spaced (x,y) waypoints, evenly spaced @ 30m
 					// later we will interpolate these waypoints with a spline and fill it in with more points 
@@ -282,26 +283,30 @@ int main()
 
 					// reference x, y and yaw rate
 					// either we will reference the starting point as where the car is or at the previous paths end point
-					double ref_x = car_x;
-					double ref_y = car_y;
-					double ref_yaw = deg2rad(car_yaw);
+					double ref_x;
+					double ref_y;
+					double ref_yaw;
 
 					// If previous size is almost empty, use the car as starting reference
 					if(prev_size < 2) 
 					{
-						std::cout << "Previous path has: "<< prev_size << "items- simulator has consumed most!!\n";
+						std::cout << "Previous path has: "<< prev_size << " items- simulator has consumed most!!\n";
+						ref_x = car_x;
+						ref_y = car_y;
+						ref_yaw = deg2rad(car_yaw);
+						cout << "ref_yaw1(deg) = " << ref_yaw << "\n\n";
 	
 						// Use two points that make the path tangent to the car
-						double prev_car_x = car_x - cos(ref_yaw);    // car_yaw); 
-						double prev_car_y = car_y - sin(ref_yaw);    // car_yaw);
+						double prev_car_x = car_x - cos(car_yaw); 
+						double prev_car_y = car_y - sin(car_yaw);
 						std::cout << "car_x = " << car_x << "\t" << "prev_car_x = " << prev_car_x << "\n";
 						std::cout << "car_y = " << car_y << "\t" << "prev_car_y = " << prev_car_y << "\n";
 	
-						ptsx.push_back(prev_car_x);
-						ptsx.push_back(car_x);
+	//					ptsx.push_back(prev_car_x);
+	//					ptsx.push_back(car_x);
 
-						ptsy.push_back(prev_car_y);
-						ptsy.push_back(car_y);
+	//					ptsy.push_back(prev_car_y);
+	//					ptsy.push_back(car_y);
 			
 					}
 					else   // use the previous path's end point as starting reference
@@ -315,7 +320,10 @@ int main()
 						double ref_x_prev = previous_path_x[prev_size-2];
 						double ref_y_prev = previous_path_y[prev_size-2];
 						ref_yaw = atan2( ref_y-ref_y_prev, ref_x-ref_x_prev);		
-
+						cout << "2nd to last point x:y = " << ref_x_prev << " : " << ref_y_prev << "\n";
+						cout << " last point x:y = " << ref_x << " : " << ref_y << "\n";
+						cout << "ref_yaw2(deg) = " << ref_yaw << "\n";
+	
 						// Use two points that make the path tangent to the previous path's end point
 						ptsx.push_back(ref_x_prev);
 						ptsx.push_back(ref_x);
@@ -325,7 +333,7 @@ int main()
 					}
 
 					//----------------------------------------------------------------------------
-					// in freenet add evenly 30m spaced points ahead of the starting reference
+					// Create /add evenly 30m spaced points ahead of the starting reference
 					vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, 
 																						map_waypoints_x, map_waypoints_y);
 					vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, 
@@ -343,24 +351,22 @@ int main()
 					ptsy.push_back(next_wp2[1]);
 					std::cout << "ptsy.pushback = " << next_wp0[1] << " " << next_wp1[1] << " " << next_wp2[1] << "\n";
 
-/****			for(int i=0; i< ptsx.size(); i++)
-			{
-				// shift car reference angle to 0 degrees. basically switch to car-coordinates
-				double shift_x = ptsx[i] - ref_x;
-				double shift_y = ptsy[i] - ref_y;
+					//----------------------------------------------------------------------------
+					// shift car reference angle to 0 degrees. basically switch to car-coordinates
+					//----------------------------------------------------------------------------
+					for(int i=0; i< ptsx.size(); i++)
+					{
+						double delta_x = ptsx[i] - ref_x;
+						double delta_y = ptsy[i] - ref_y;
 
-				ptsx[i] = (shift_x * cos(0-ref_yaw) - shift_y * sin(0-ref_yaw));
-				ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
-			}
-***/
+						ptsx[i] = (delta_x * cos(0-ref_yaw)) - (delta_y * sin(0-ref_yaw));
+						ptsy[i] = (delta_x * sin(0-ref_yaw)) + (delta_y * cos(0-ref_yaw));
+						cout << " Car coord ptsx[i] = " << ptsx[i] << "\t" << "ptsy[i] = " << ptsy[i] << "\n";
+					}
+
 					// create spline
 					tk::spline s;
 	
-					for(int n=0; n < ptsx.size(); n++)
-					{
-						std::cout << "final ptsx[] = " << ptsx[n] << "\t";
-						std::cout << "final ptsy[] = " << ptsy[n] << "\n";
-					}
 					//set (x,y) points to spline 
 					s.set_points(ptsx, ptsy);
 	
@@ -369,7 +375,7 @@ int main()
          	vector<double> next_y_vals;
 
 					// Start with all of the previous path points from last time
-					for (int i=0; i < previous_path_x.size(); i++)
+					for (int i=0; i < prev_size; i++)
 					{
 						next_x_vals.push_back(previous_path_x[i]);
 						next_y_vals.push_back(previous_path_y[i]);
@@ -380,27 +386,30 @@ int main()
 					double target_y = s(target_x);
 					double target_dist = sqrt ((target_x)*(target_x) + (target_y)*(target_y) );
 					std::cout << "target_x = " << target_x << "\t" << "target_y = " << target_y << "\t" 
-							  << "target_dist = " << target_dist << "\n";
+															  << "target_dist = " << target_dist << "\n";
 
 					double x_add_on = 0;
 
 					// Fill up the rest of hte path planner after filling it with prvious points. 
 					// Here we will always put out 50 points
-					for(int i = 1; i <= 50-previous_path_x.size(); i++)
+					for(int i = 0; i < 50-prev_size; i++)
 					{
 						double N = (target_dist / (0.02 * ref_vel / 2.24) );   // check out the hand-drawn diagram
-//					std::cout << "N = " << N << "\n";
+						std::cout << "N = " << N << "\n";
 
 						double x_point = x_add_on + (target_x)/N;				// 2.24 for mph to meterps
 						double y_point = s(x_point);
 //					std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
 
 						x_add_on = x_point;
+						cout << "x_add_on = " << x_add_on << "\n";
 
 						double x_ref = x_point;
 						double y_ref = y_point;
 
-						// rotate back to normal 
+					//---------------------------------------------------------
+					// rotate back to World Map coordinates 
+					//---------------------------------------------------------
 						x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
 						y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
 //						std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
@@ -413,7 +422,7 @@ int main()
 						next_y_vals.push_back(y_point);
 					}			
 
-					// TODO 
+					// end of TODO 
 
     		  json msgJson;
 					msgJson["next_x"] = next_x_vals;
