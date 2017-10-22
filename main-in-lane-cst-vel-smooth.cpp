@@ -224,7 +224,13 @@ int main()
   		map_waypoints_dy.push_back(d_y);
   	}
 	
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, 
+		// Start lane
+		int lane = 1;
+
+  	// Have a reference velocity to target
+		double ref_vel = 49.5;	// mph
+
+	h.onMessage([&ref_vel, &lane, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy]		(uWS::WebSocket<uWS::SERVER> ws, 
 				char *data, size_t length, uWS::OpCode opCode){
 
     // "42" at the start of the message means there's a websocket message event.
@@ -235,117 +241,107 @@ int main()
     if (length && length > 2 && data[0] == '4' && data[1] == '2') 
 		{
       auto s = hasData(data);
-
       if (s != "") 
 	  	{
         auto j = json::parse(s);
-        
         string event = j[0].get<string>();
-        
         if (event == "telemetry") 
 				{
           // j[1] is the data JSON object
           
         	// Main car's localization Data
-          	double car_x = j[1]["x"];
-          	double car_y = j[1]["y"];
-						std::cout << "car_x = " << car_x << "\t" << "car_y = " << car_y << "\n";
-          	double car_s = j[1]["s"];
-          	double car_d = j[1]["d"];
-						std::cout << "car_s = " << car_s << "\t" << "car_d = " << car_d << "\n";
-          	double car_yaw = j[1]["yaw"];
-          	double car_speed = j[1]["speed"];
-						std:cout << "car_yaw = " << car_yaw << "\t" << "car_speed = " << car_speed << "\n";
+         	double car_x = j[1]["x"];
+         	double car_y = j[1]["y"];
+					std::cout << "car_x = " << car_x << "\t" << "car_y = " << car_y << "\n";
+         	double car_s = j[1]["s"];
+         	double car_d = j[1]["d"];
+					std::cout << "car_s = " << car_s << "\t" << "car_d = " << car_d << "\n";
+         	double car_yaw = j[1]["yaw"];
+         	double car_speed = j[1]["speed"];
+					std:cout << "car_yaw = " << car_yaw << "\t" << "car_speed = " << car_speed << "\n";
 
-          	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
-       
-   					// Previous path's end s and d values 
-          	double end_path_s = j[1]["end_path_s"];
-          	double end_path_d = j[1]["end_path_d"];
+         	// Previous path data given to the Planner
+         	auto previous_path_x = j[1]["previous_path_x"];
+         	auto previous_path_y = j[1]["previous_path_y"];
+      
+   				// Previous path's end s and d values 
+         	double end_path_s = j[1]["end_path_s"];
+         	double end_path_d = j[1]["end_path_d"];
 
-          	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-          	vector< vector< double> > sensor_fusion = j[1]["sensor_fusion"];
+         	// Sensor Fusion Data, a list of all other cars on the same side of the road.
+         	vector< vector< double> > sensor_fusion = j[1]["sensor_fusion"];
 
-			// TODO
-			// Start lane
-			int lane = 1;
+					// TODO
+					int prev_size = previous_path_x.size();
 
-		  	// Have a reference velocity to target
-			double ref_vel = 49.5;	// mph
+					// create a widely spaced (x,y) waypoints, evenly spaced @ 30m
+					// later we will interpolate these waypoints with a spline and fill it in with more points 
+					// that control speed
+					vector <double> ptsx;
+					vector <double> ptsy;
 
-			int prev_size = previous_path_x.size();
+					// reference x, y and yaw rate
+					// either we will reference the starting point as where the car is or at the previous paths end point
+					double ref_x = car_x;
+					double ref_y = car_y;
+					double ref_yaw = deg2rad(car_yaw);
 
-			// create a widely spaced (x,y) waypoints, evenly spaced @ 30m
-			// later we will interpolate these waypoints with a spline and fill it in with more points 
-			// that control speed
-			vector <double> ptsx;
-			vector <double> ptsy;
-
-			// reference x, y and yaw rate
-			// either we will reference the starting point as where the car is or at the previous paths end point
-			double ref_x = car_x;
-			double ref_y = car_y;
-			double ref_yaw = deg2rad(car_yaw);
-
-			// If previous size is almost empty, use the car as starting reference
-			if(prev_size < 2) 
-			{
-				std::cout << "Previous path has: "<< prev_size << "items- simulator has consumed most!!\n";
-				car_x -= 2; // just to make it higher than wp0 below
-
-				// Use two points that make the path tangent to the car
-				double prev_car_x = car_x - cos(ref_yaw);    // car_yaw); 
-				double prev_car_y = car_y - sin(ref_yaw);    // car_yaw);
-				std::cout << "car_x = " << car_x << "\t" << "prev_car_x = " << prev_car_x << "\n";
-				std::cout << "car_y = " << car_y << "\t" << "prev_car_y = " << prev_car_y << "\n";
+					// If previous size is almost empty, use the car as starting reference
+					if(prev_size < 2) 
+					{
+						std::cout << "Previous path has: "<< prev_size << "items- simulator has consumed most!!\n";
 	
-				ptsx.push_back(prev_car_x);
-				ptsx.push_back(car_x);
+						// Use two points that make the path tangent to the car
+						double prev_car_x = car_x - cos(ref_yaw);    // car_yaw); 
+						double prev_car_y = car_y - sin(ref_yaw);    // car_yaw);
+						std::cout << "car_x = " << car_x << "\t" << "prev_car_x = " << prev_car_x << "\n";
+						std::cout << "car_y = " << car_y << "\t" << "prev_car_y = " << prev_car_y << "\n";
+	
+						ptsx.push_back(prev_car_x);
+						ptsx.push_back(car_x);
 
-				ptsy.push_back(-6);		//prev_car_y);
-				ptsy.push_back(-6);		//car_y);
+						ptsy.push_back(prev_car_y);
+						ptsy.push_back(car_y);
 			
-			}
-			else   // use the previous path's end point as starting reference
-			{
-				std::cout << "Remaining items in previous path = " << prev_size << "\n";
+					}
+					else   // use the previous path's end point as starting reference
+					{
+						std::cout << "Remaining items in previous path = " << prev_size << "\n";
 
-				// Redefine reference state as previous path end point
-				ref_x = previous_path_x[prev_size-1];
-				ref_y = previous_path_y[prev_size-1];
+						// Redefine reference state as previous path end point
+						ref_x = previous_path_x[prev_size-1];
+						ref_y = previous_path_y[prev_size-1];
 				
-				double ref_x_prev = previous_path_x[prev_size-2];
-				double ref_y_prev = previous_path_y[prev_size-2];
-				ref_yaw = atan2( ref_y-ref_y_prev, ref_x-ref_x_prev);		
+						double ref_x_prev = previous_path_x[prev_size-2];
+						double ref_y_prev = previous_path_y[prev_size-2];
+						ref_yaw = atan2( ref_y-ref_y_prev, ref_x-ref_x_prev);		
 
-				// Use two points that make the path tangent to the previous path's end point
-				ptsx.push_back(ref_x_prev);
-				ptsx.push_back(ref_x);
+						// Use two points that make the path tangent to the previous path's end point
+						ptsx.push_back(ref_x_prev);
+						ptsx.push_back(ref_x);
 
-				ptsy.push_back(-6);		//ref_y_prev);
-				ptsy.push_back(-6);		// ref_y);
-			}
+						ptsy.push_back(ref_y_prev);
+						ptsy.push_back(ref_y);
+					}
 
-			//----------------------------------------------------------------------------
-			// in freenet add evenly 30m spaced points ahead of the starting reference
-			vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, 
-														map_waypoints_x, map_waypoints_y);
-			vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, 
-														map_waypoints_x, map_waypoints_y);
-			vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, 
-														map_waypoints_x, map_waypoints_y);
+					//----------------------------------------------------------------------------
+					// in freenet add evenly 30m spaced points ahead of the starting reference
+					vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, 
+																						map_waypoints_x, map_waypoints_y);
+					vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, 
+																						map_waypoints_x, map_waypoints_y);
+					vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, 
+																						map_waypoints_x, map_waypoints_y);
 
-			ptsx.push_back(next_wp0[0]);
-			ptsx.push_back(next_wp1[0]);
-			ptsx.push_back(next_wp2[0]);
-			std::cout << "ptsx.pushback = " << next_wp0[0] << " " << next_wp1[0] << " " << next_wp2[0] << "\n";
+					ptsx.push_back(next_wp0[0]);
+					ptsx.push_back(next_wp1[0]);
+					ptsx.push_back(next_wp2[0]);
+					std::cout << "ptsx.pushback = " << next_wp0[0] << " " << next_wp1[0] << " " << next_wp2[0] << "\n";
 
-			ptsy.push_back(next_wp0[1]);
-			ptsy.push_back(next_wp1[1]);
-			ptsy.push_back(next_wp2[1]);
-			std::cout << "ptsy.pushback = " << next_wp0[1] << " " << next_wp1[1] << " " << next_wp2[1] << "\n";
+					ptsy.push_back(next_wp0[1]);
+					ptsy.push_back(next_wp1[1]);
+					ptsy.push_back(next_wp2[1]);
+					std::cout << "ptsy.pushback = " << next_wp0[1] << " " << next_wp1[1] << " " << next_wp2[1] << "\n";
 
 /****			for(int i=0; i< ptsx.size(); i++)
 			{
@@ -357,85 +353,87 @@ int main()
 				ptsy[i] = (shift_x * sin(0-ref_yaw) + shift_y * cos(0-ref_yaw));
 			}
 ***/
-			// create spline
-			tk::spline s;
+					// create spline
+					tk::spline s;
 	
-			for(int n=0; n < ptsx.size(); n++)
-			{
-				std::cout << "final ptsx[] = " << ptsx[n] << "\t";
-				std::cout << "final ptsy[] = " << ptsy[n] << "\n";
-			}
-			//set (x,y) points to spline 
-			s.set_points(ptsx, ptsy);
+					for(int n=0; n < ptsx.size(); n++)
+					{
+						std::cout << "final ptsx[] = " << ptsx[n] << "\t";
+						std::cout << "final ptsy[] = " << ptsy[n] << "\n";
+					}
+					//set (x,y) points to spline 
+					s.set_points(ptsx, ptsy);
 	
-			//-------------------------------------------------------------------
-           	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
+					//-------------------------------------------------------------------
+         	vector<double> next_x_vals;
+         	vector<double> next_y_vals;
 
-			// Start with all of the previous path points from last time
-			for (int i=0; i < previous_path_x.size(); i++)
-			{
-				next_x_vals.push_back(previous_path_x[i]);
-				next_y_vals.push_back(previous_path_y[i]);
-			}
+					// Start with all of the previous path points from last time
+					for (int i=0; i < previous_path_x.size(); i++)
+					{
+						next_x_vals.push_back(previous_path_x[i]);
+						next_y_vals.push_back(previous_path_y[i]);
+					}
 			
-			// Calculate how to break up spline points so that we travel at our desired reference velocity
-			double target_x = 30.0;
-			double target_y = s(target_x);
-			double target_dist = sqrt ((target_x)*(target_x) + (target_y)*(target_y) );
-			std::cout << "target_x = " << target_x << "\t" << "target_y = " << target_y << "\t" 
-					  << "target_dist = " << target_dist << "\n";
+					// Calculate how to break up spline points so that we travel at our desired reference velocity
+					double target_x = 30.0;
+					double target_y = s(target_x);
+					double target_dist = sqrt ((target_x)*(target_x) + (target_y)*(target_y) );
+					std::cout << "target_x = " << target_x << "\t" << "target_y = " << target_y << "\t" 
+							  << "target_dist = " << target_dist << "\n";
 
-			double x_add_on = 0;
+					double x_add_on = 0;
 
-			// Fill up the rest of hte path planner after filling it with prvious points. 
-			// Here we will always put out 50 points
-			for(int i = 1; i <= 50-previous_path_x.size(); i++)
+					// Fill up the rest of hte path planner after filling it with prvious points. 
+					// Here we will always put out 50 points
+					for(int i = 1; i <= 50-previous_path_x.size(); i++)
+					{
+						double N = (target_dist / (0.02 * ref_vel / 2.24) );   // check out the hand-drawn diagram
+//					std::cout << "N = " << N << "\n";
+
+						double x_point = x_add_on + (target_x)/N;				// 2.24 for mph to meterps
+						double y_point = s(x_point);
+//					std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
+
+						x_add_on = x_point;
+
+						double x_ref = x_point;
+						double y_ref = y_point;
+
+						// rotate back to normal 
+						x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
+						y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
+//						std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
+
+						x_point += ref_x;
+						y_point += ref_y;
+						std::cout << "next_xy_vals: x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
+
+						next_x_vals.push_back(x_point);
+						next_y_vals.push_back(y_point);
+					}			
+
+					// TODO 
+
+    		  json msgJson;
+					msgJson["next_x"] = next_x_vals;
+    		  msgJson["next_y"] = next_y_vals;
+
+    		  auto msg = "42[\"control\","+ msgJson.dump()+"]";
+
+    		  //this_thread::sleep_for(chrono::milliseconds(1000));
+    		  ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+
+    		} // if event is telemetry
+    	} // s!=0
+			else
 			{
-				double N = (target_dist / (0.02 * ref_vel / 2.24) );   // check out the hand-drawn diagram
-//				std::cout << "N = " << N << "\n";
-
-				double x_point = x_add_on + (target_x)/N;				// 2.24 for mph to meterps
-				double y_point = s(x_point);
-//				std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
-
-				x_add_on = x_point;
-
-				double x_ref = x_point;
-				double y_ref = y_point;
-
-				// rotate back to normal 
-				x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw) );
-				y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw) );
-//				std::cout << "x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
-
-				x_point += ref_x;
-				y_point += ref_y;
-				std::cout << "next_xy_vals: x_point = " << x_point << "\t" << "y_point = " << y_point << "\n";			
-
-				next_x_vals.push_back(x_point);
-				next_y_vals.push_back(y_point);
-			}			
-
-			// TODO 
-
-           	json msgJson;
-			msgJson["next_x"] = next_x_vals;
-          	msgJson["next_y"] = next_y_vals;
-
-          	auto msg = "42[\"control\","+ msgJson.dump()+"]";
-
-          	//this_thread::sleep_for(chrono::milliseconds(1000));
-          	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
-        }
-      } else {
         // Manual driving
         std::string msg = "42[\"manual\",{}]";
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-      }
-    }
-  });
+    	}
+  	} // msg==42
+});
 
   // We don't need this since we're not using HTTP but if it's removed the
   // program
