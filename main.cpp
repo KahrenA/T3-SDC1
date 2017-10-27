@@ -227,7 +227,7 @@ int main()
 		int car_lane = 1;
 
   	// Have a reference velocity to target
-		double ref_vel = 0.5;	// mph
+		double ref_vel = 4;	// 1.0 mph == 0.623meters/s
 
 	h.onMessage([&ref_vel, &car_lane, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy]		(uWS::WebSocket<uWS::SERVER> ws, 
 				char *data, size_t length, uWS::OpCode opCode){
@@ -262,8 +262,7 @@ int main()
          	// Previous path data given to the Planner
          	auto previous_path_x = j[1]["previous_path_x"];
          	auto previous_path_y = j[1]["previous_path_y"];
-					
-      
+			
    				// Previous path's end s and d values 
          	double end_path_s = j[1]["end_path_s"];
          	double end_path_d = j[1]["end_path_d"];
@@ -280,9 +279,12 @@ int main()
 	//				cout << "sensor_fusion size = " << sensor_fusion.size() << "\n";
 	
 					double iCar_id, iCar_x, iCar_y, iCar_vx, iCar_vy, iCar_speed, iCar_d, iCar_s;
-					double closest_carId = -1;
-					double closest_car_s;
-					double closest_carId_to_left = -1;
+					double closest_inlane_carId = -1;
+					double closest_inlane_car_s;
+					double closest_left_carId = -1;
+					double closest_left_car_s;
+					double closest_right_carId = -1;
+					double closest_right_car_s;
 
 					// is this car in my lane? note each lane is 4m wide 
 					double lane_min = (double)car_lane * 4;
@@ -290,6 +292,7 @@ int main()
 					cout << "lane_min == "  << lane_min << "\t" << "lane_max == " << lane_max << "\n";
 
 					int change_to_left_lane = false;
+					int change_to_right_lane = false;
 					//----------------------------------------
 					// Let's find the closest car in my lane 
 					//----------------------------------------
@@ -317,45 +320,79 @@ int main()
 						// Is the car within my lane?
 						if( (iCar_d > lane_min) && (iCar_d < lane_max)  )
 						{
-							cout << "car ID: " << iCar_id << " is in my lane\n";
+//							cout << "car ID: " << iCar_id << " is in my lane\n";
+
 							// first occurrence of a car in our lane 
-							if(closest_carId == -1)
+							if(closest_inlane_carId == -1)
 							{
-								closest_carId = iCar_id;
-								closest_car_s = iCar_s;
+								closest_inlane_carId = iCar_id;
+								closest_inlane_car_s = iCar_s;
 							}
-							else if	( iCar_s < closest_car_s) 	// Take the closer one
+							else if	( iCar_s < closest_inlane_car_s) 	// Take the closer one
 							{
-								closest_carId = iCar_id;
-								closest_car_s = iCar_s;
+								closest_inlane_carId = iCar_id;
+								closest_inlane_car_s = iCar_s;
 							}
 						}
-						else if ( (iCar_d > lane_min+4) && (iCar_d < lane_max+4) )
+						// Is the iCar in my left lane?
+						else if ( lane_min >= 4 && (iCar_d > lane_min-4) && (iCar_d < lane_max-4) )
 						{
-							// would I crash into the car if I change to left lane?
-							if( abs(iCar_s - car_s) < 30) 
+	//						cout << "CarID : " << iCar_id << " is on my left! \n";
+
+							// Determine closest car_to_left 
+							if(closest_left_carId == -1) 
 							{
-								change_to_left_lane = false;
-								cout << "There is a car to my left! \n";
+								closest_left_carId = iCar_id;
+								closest_left_car_s = iCar_s;
 							}
-							else
+							else if (iCar_s < closest_left_car_s)
 							{
-								change_to_left_lane = true;
-								cout << "Cleared to change to left lane\n"; 
+								closest_left_carId = iCar_id;
+								closest_left_car_s = iCar_s;
+							}
+								
+						} // else if
+						// Is the iCar in my right lane?
+						else if ( lane_min <= 8 && (iCar_d > lane_min+4) && (iCar_d < lane_max+4) )
+						{
+	//						cout << "CarID : " << iCar_id << " is on my right! \n";
+
+							// Determine closest car to the right
+							if(closest_right_carId == -1) 
+							{
+								closest_right_carId = iCar_id;
+								closest_right_car_s = iCar_s;
+							}
+							else if (iCar_s < closest_right_car_s)
+							{
+								closest_right_carId = iCar_id;
+								closest_right_car_s = iCar_s;
 							}
 						}
-					} // for closest car 
+				} // for closest car 
+				cout << "closest in lane carID = " << closest_inlane_carId << "\n";
+				cout << "closest left lane carID = " << closest_left_carId << "\n";
+				cout << "closest right lane carID = " << closest_right_carId << "\n";
 
 				//============================================================		
 				//if no cars ahead of us  
-				if (closest_carId == -1)
+				if (closest_inlane_carId == -1)
 				{
 					cout << "No in-lane cars detected!!\n";
-
-					if ( ref_vel < 49) 
+					if (ref_vel < 5)
 					{
-						cout << "Increasing speed by 1... \n";
-						ref_vel += 1.0;
+						cout << "Increasing speed by 1....#1... \n";
+						ref_vel += 1.0;			// 0.024m/s == 0.0385 mph 
+					}
+					else if( ref_vel < 25)
+					{	
+						cout << "Increasing speed by 2...#1...\n";
+						ref_vel += 2.0;							
+					}				
+					else if ( ref_vel < 49) 
+					{
+						cout << "Increasing speed by 1....#2... \n";
+						ref_vel += 1.0;			// 0.024m/s == 0.0385 mph 
 					}
 					else
 					{
@@ -364,8 +401,7 @@ int main()
 				}			
 				else 		// Take the closest car we id'ed
 				{
-					int i = closest_carId;	
-					cout << "Closest car in my lane is car_id = " << i << "\n";
+					int i = closest_inlane_carId;	
 					iCar_id = sensor_fusion[i][0];
 					iCar_x = sensor_fusion[i][1];
 					iCar_y = sensor_fusion[i][2];
@@ -379,39 +415,52 @@ int main()
 					// given the car is in my lane, is it too close i.e. within 30m?
 					if ( iCar_s - car_s > 0 && (iCar_s - car_s < 25) )
 					{
-						cout << "Car is within 30 meters! and car_lane -1 = " << car_lane-1 << "\n";
+						int change_to_left = false;
+						int change_to_right = false;
+						cout << "Car is within 25 meters! and car_lane -1 = " << car_lane-1 << "\n";
 
 						// is there a left lane? 
 						if(car_lane -1 >= 0 ) 
 						{
-							cout << "Yes there is a left lane! \n";
-
-							// is it safe to change to left lane? 
-							if(change_to_left_lane)
+							// would I crash into the car if I change to left lane?
+							if( closest_left_carId == -1 || abs(sensor_fusion[closest_left_carId][5] - car_s) > 25) 
 							{
-								car_lane -= 1;	//change to left lane 
-							}
-							else
-							{							
-								// if not safe then slow down		
-								cout << "Because now I am not changing lanes, will slow down!!! \n";						
-								ref_vel -= 1; 
+								cout << "Change to left lane! \n";
+								change_to_left = true; 
+								car_lane -= 1;	// go left
 							}
 						}
-						else  // slown down
+
+						// Is there a right lane && we are not changing to left lane?
+						if(car_lane +1 < 3 && change_to_left == false)
 						{
+							if( closest_right_carId == -1 || abs(sensor_fusion[closest_right_carId][5] - car_s) > 25) 
+							{
+								cout << "Change to right lane! \n";
+								change_to_right = true;
+								car_lane += 1; 	// go right
+							}
+						}
+						else if( change_to_left == false && change_to_right == false) 
+						{
+								// can't go left or right... slown down
 								cout << "Slowing down ... \n";
 								ref_vel -= 1;
 						}
-					} // is car too close?
-					else if( ref_vel < 25)
+					} 
+					else if(ref_vel < 5) 			// to address the starting jerkiness
 					{
-						cout << "Increasing speed by 2...\n";
+						cout << "increasing speed by 1... #3\n";
+						ref_vel += 1;
+					}				
+					else if( ref_vel < 20)   	// no car ahead within range 
+					{
+						cout << "Increasing speed by 2...#2\n";
 						ref_vel += 2;
 					}					
 					else if ( ref_vel < 49) 
 					{
-						cout << "Increasing speed by 1... \n";
+						cout << "Increasing speed by 1...#4 \n";
 						ref_vel += 1.0;
 					}
 					else
@@ -526,7 +575,7 @@ int main()
          	vector<double> next_x_vals;
          	vector<double> next_y_vals;
 
-					// Start with all of the previous path points from last time
+					// Start with ALL of the previous path points from last time
 					for (int i=0; i < prev_size; i++)
 					{
 						next_x_vals.push_back(previous_path_x[i]);
@@ -542,7 +591,7 @@ int main()
 
 					double x_add_on = 0;
 
-					// Fill up the rest of hte path planner after filling it with prvious points. 
+					// Fill up the rest of the path planner after filling it with previous points. 
 					// Here we will always put out 50 points
 					for(int i = 0; i < 50-prev_size; i++)
 					{
