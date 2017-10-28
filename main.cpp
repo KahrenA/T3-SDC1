@@ -291,8 +291,8 @@ int main()
 					double lane_max = (double)(car_lane + 1) * 4;
 					cout << "lane_min == "  << lane_min << "\t" << "lane_max == " << lane_max << "\n";
 
-					int change_to_left_lane = false;
-					int change_to_right_lane = false;
+					int slow_down = true;		// assume we can't change lane
+
 					//----------------------------------------
 					// Let's find the closest car in my lane 
 					//----------------------------------------
@@ -370,6 +370,7 @@ int main()
 							}
 						}
 				} // for closest car 
+
 				cout << "closest in lane carID = " << closest_inlane_carId << "\n";
 				cout << "closest left lane carID = " << closest_left_carId << "\n";
 				cout << "closest right lane carID = " << closest_right_carId << "\n";
@@ -410,13 +411,11 @@ int main()
 					iCar_speed = sqrt(iCar_vx * iCar_vx + iCar_vy * iCar_vy);
 					iCar_s = sensor_fusion[i][5];
 					iCar_d = sensor_fusion[i][6]; 		
-		
+	
 					// ============================================================
 					// given the car is in my lane, is it too close i.e. within 30m?
 					if ( iCar_s - car_s > 0 && (iCar_s - car_s < 25) )
 					{
-						int change_to_left = false;
-						int change_to_right = false;
 						cout << "Car is within 25 meters! and car_lane -1 = " << car_lane-1 << "\n";
 
 						// is there a left lane? 
@@ -425,29 +424,31 @@ int main()
 							// would I crash into the car if I change to left lane?
 							if( closest_left_carId == -1 || abs(sensor_fusion[closest_left_carId][5] - car_s) > 25) 
 							{
-								cout << "Change to left lane! \n";
-								change_to_left = true; 
+								cout << "Changing to left lane! \n";
 								car_lane -= 1;	// go left
+								slow_down = false; 
 							}
 						}
 
 						// Is there a right lane && we are not changing to left lane?
-						if(car_lane +1 < 3 && change_to_left == false)
+						if(car_lane +1 < 3 && slow_down == true)
 						{
 							if( closest_right_carId == -1 || abs(sensor_fusion[closest_right_carId][5] - car_s) > 25) 
 							{
-								cout << "Change to right lane! \n";
-								change_to_right = true;
+								cout << "Changing to right lane! \n";
 								car_lane += 1; 	// go right
+								slow_down = false; 
 							}
 						}
-						else if( change_to_left == false && change_to_right == false) 
+						// if we could not change lane for any reason, then slow down
+						if(slow_down == true) 
 						{
 								// can't go left or right... slown down
 								cout << "Slowing down ... \n";
 								ref_vel -= 1;
 						}
-					} 
+					} // there is a car in my lane
+
 					else if(ref_vel < 5) 			// to address the starting jerkiness
 					{
 						cout << "increasing speed by 1... #3\n";
@@ -503,11 +504,11 @@ int main()
 	//					std::cout << "car_x = " << car_x << "\t" << "prev_car_x = " << prev_car_x << "\n";
 	//					std::cout << "car_y = " << car_y << "\t" << "prev_car_y = " << prev_car_y << "\n";
 	
-	//					ptsx.push_back(prev_car_x);
-	//					ptsx.push_back(car_x);
+						ptsx.push_back(prev_car_x);
+						ptsx.push_back(car_x);
 
-	//					ptsy.push_back(prev_car_y);
-	//					ptsy.push_back(car_y);
+						ptsy.push_back(prev_car_y);
+						ptsy.push_back(car_y);
 			
 					}
 					else   // use the previous path's end point as starting reference
@@ -574,6 +575,14 @@ int main()
 					//-------------------------------------------------------------------
          	vector<double> next_x_vals;
          	vector<double> next_y_vals;
+
+					int start_of_prev_path = 0;
+
+					// If we are slowing down, we need to take fewer points instead of all
+					if(slow_down == true && prev_size > 2) 
+					{
+						start_of_prev_path = prev_size - 2; 
+					}
 
 					// Start with ALL of the previous path points from last time
 					for (int i=0; i < prev_size; i++)
