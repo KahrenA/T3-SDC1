@@ -521,26 +521,24 @@ int main()
 				
 						double ref_x_prev = previous_path_x[prev_size-2];
 						double ref_y_prev = previous_path_y[prev_size-2];
+
 						ref_yaw = atan2( ref_y-ref_y_prev, ref_x-ref_x_prev);		
-	//					cout << "2nd to last point x:y = " << ref_x_prev << " : " << ref_y_prev << "\n";
-	//					cout << " last point x:y = " << ref_x << " : " << ref_y << "\n";
-	//					cout << "ref_yaw2(deg) = " << ref_yaw << "\n";
-	
+
 						// Use two points that make the path tangent to the previous path's end point
 						ptsx.push_back(ref_x_prev);
 						ptsx.push_back(ref_x);
-
 						ptsy.push_back(ref_y_prev);
 						ptsy.push_back(ref_y);
+						
 					}
 
 					//----------------------------------------------------------------------------
 					// Create /add evenly 30m spaced points ahead of the starting reference
-					vector<double> next_wp0 = getXY(car_s + 30, (2+4*car_lane), map_waypoints_s, 
+					vector<double> next_wp0 = getXY(car_s + 60, (2+4*car_lane), map_waypoints_s, 
 																						map_waypoints_x, map_waypoints_y);
-					vector<double> next_wp1 = getXY(car_s + 60, (2+4*car_lane), map_waypoints_s, 
+					vector<double> next_wp1 = getXY(car_s + 90, (2+4*car_lane), map_waypoints_s, 
 																						map_waypoints_x, map_waypoints_y);
-					vector<double> next_wp2 = getXY(car_s + 90, (2+4*car_lane), map_waypoints_s, 
+					vector<double> next_wp2 = getXY(car_s + 120, (2+4*car_lane), map_waypoints_s, 
 																						map_waypoints_x, map_waypoints_y);
 
 					ptsx.push_back(next_wp0[0]);
