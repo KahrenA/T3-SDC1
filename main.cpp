@@ -383,7 +383,7 @@ int main()
 					if (ref_vel < 5)
 					{
 						cout << "Increasing speed by 1....#1... \n";
-						ref_vel += 1.0;			// 0.024m/s == 0.0385 mph 
+						ref_vel += 0.2;			// 0.024m/s == 0.0385 mph :: last value 1.0
 					}
 					else if( ref_vel < 25)
 					{	
@@ -452,7 +452,7 @@ int main()
 					else if(ref_vel < 5) 			// to address the starting jerkiness
 					{
 						cout << "increasing speed by 1... #3\n";
-						ref_vel += 1;
+						ref_vel += 0.2;					// This happens when 
 					}				
 					else if( ref_vel < 20)   	// no car ahead within range 
 					{
